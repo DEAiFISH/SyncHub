@@ -1,0 +1,10 @@
+node_modules/
+dist/
+release/
+*.exe
+*.exe.blockmap
+*.zip
+convert-icon.js
+make-icon.*
+setup-mac.sh
+.env

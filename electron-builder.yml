@@ -1,0 +1,39 @@
+appId: com.synclub.app
+productName: SyncHub
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+extraResources:
+  - from: resources/bin
+    to: bin
+    filter:
+      - "**/*"
+  - from: resources/icon.ico
+    to: icon.ico
+  - from: resources/icon.png
+    to: icon.png
+win:
+  target:
+    - nsis
+  icon: resources/icon.ico
+  requestedExecutionLevel: asInvoker
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  include: build/installer.nsh
+  artifactName: "SyncHub-Setup-${version}.${ext}"
+mac:
+  target:
+    - dmg
+  icon: resources/icon.png
+  category: public.app-category.utilities
+  artifactName: "SyncHub-${version}-mac.${ext}"

@@ -18,6 +18,7 @@ const frpc = require('./services/frpc')
 const syncthing = require('./services/syncthing')
 const frpsApi = require('./services/frps-api')
 const traffic = require('./services/traffic')
+const updater = require('./services/updater')
 
 let mainWindow = null
 let tray = null
@@ -272,6 +273,17 @@ function setupIPC() {
       app.setLoginItemSettings({ openAtLogin: enable, path: app.getPath('exe') })
     } catch (err) { console.error('[IPC] settings:autoStart error:', err.message) }
   })
+
+  // 更新
+  ipcMain.handle('updater:check', () => {
+    try { updater.checkForUpdate(0) } catch (err) { console.error('[IPC] updater:check error:', err.message) }
+  })
+  ipcMain.handle('updater:install', () => {
+    try { updater.quitAndInstall() } catch (err) { console.error('[IPC] updater:install error:', err.message) }
+  })
+  ipcMain.handle('updater:status', () => {
+    try { return updater.getStatus() } catch (err) { console.error('[IPC] updater:status error:', err.message); return {} }
+  })
 }
 
 // App lifecycle
@@ -306,6 +318,10 @@ app.whenReady().then(async () => {
   setupIPC()
   createWindow()
   createTray()
+
+  // 初始化自动更新
+  updater.init(mainWindow)
+  updater.checkForUpdate()
 
   try {
     console.log('[SyncHub] 启动 frpc...')

@@ -14,6 +14,15 @@ const SERVER_DOMAIN = process.env.SERVER_DOMAIN || ''
 // frpc.exe v0.69.0 SHA256 校验值
 const FRPC_SHA256 = 'F8467A4F8D57CDE5BA808A764B528147ACD81DB0955E51BEE80FDE0FEA0E5243'
 
+// 获取带 hostname 前缀的默认代理列表（避免多设备代理名冲突）
+function getDefaultProxies() {
+  const hostname = os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, '-')
+  return [
+    { name: `${hostname}-rdp`, type: 'tcp', localIP: '127.0.0.1', localPort: 3389, remotePort: 6000 },
+    { name: `${hostname}-ssh`, type: 'tcp', localIP: '127.0.0.1', localPort: 22, remotePort: 6001 },
+  ]
+}
+
 // 内嵌公开配置（不含敏感凭证，凭证通过 .env 环境变量注入）
 const EMBEDDED_CONFIG = {
   serverAddr: process.env.SERVER_ADDR || '',
@@ -22,10 +31,7 @@ const EMBEDDED_CONFIG = {
   serverWebUser: process.env.FRPS_DASHBOARD_USER || '',
   serverWebPassword: process.env.FRPS_DASHBOARD_PASSWORD || '',
   serverSyncthingDeviceId: process.env.SYNCTHING_SERVER_DEVICE_ID || '',
-  defaultProxies: [
-    { name: 'rdp', type: 'tcp', localIP: '127.0.0.1', localPort: 3389, remotePort: 6000 },
-    { name: 'ssh', type: 'tcp', localIP: '127.0.0.1', localPort: 22, remotePort: 6001 },
-  ],
+  get defaultProxies() { return getDefaultProxies() },
 }
 
 // 敏感凭证缓存（从远程接口获取后缓存到本地）
@@ -69,6 +75,13 @@ function fetchSecureConfig() {
 
 // 获取完整配置（合并公开配置和敏感凭证）
 async function getFullConfig() {
+  // .env 中凭证完整时直接使用，不再依赖远程接口
+  if (EMBEDDED_CONFIG.authToken && EMBEDDED_CONFIG.serverWebUser && EMBEDDED_CONFIG.serverWebPassword) {
+    _secureConfig = {}
+    console.log('[SyncHub] 凭证已就绪（来自 .env）')
+    return { ...EMBEDDED_CONFIG }
+  }
+
   if (_secureConfig) {
     return { ...EMBEDDED_CONFIG, ..._secureConfig }
   }

@@ -279,6 +279,9 @@ async function poll() {
   }
 
   state.lastKnownDate = getTodayStr()
+
+  // 采集成功后立即保存，数据丢失窗口从 5 分钟降至 30 秒
+  saveState()
 }
 
 // ========== 公共 API ==========

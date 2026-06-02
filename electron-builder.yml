@@ -1,4 +1,8 @@
 appId: com.synclub.app
+publish:
+  provider: github
+  owner: DEAiFISH
+  repo: SyncHub
 productName: SyncHub
 directories:
   output: release

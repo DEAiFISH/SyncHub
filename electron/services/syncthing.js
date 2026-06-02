@@ -120,6 +120,13 @@ async function start() {
   localApiKey = extractApiKey(homeDir)
   addLog('info', `API Key: ${localApiKey || '(未找到)'}`)
 
+  // 确保同步目录存在（可能在运行期间被用户删除）
+  const syncDir = getSyncDir()
+  if (!fs.existsSync(syncDir)) {
+    fs.mkdirSync(syncDir, { recursive: true })
+    addLog('info', `同步目录已重新创建: ${syncDir}`)
+  }
+
   try {
     syncthingProcess = spawn(binPath, ['serve', `--home=${homeDir}`, '--no-browser'], {
       windowsHide: true,
@@ -481,7 +488,10 @@ async function getInfo() {
     let folderPath = '-'
     let completion = '-'
     let globalFiles = null
+    let globalBytes = null
+    let needFiles = 0
     let remoteDevice = '-'
+    let state = 'unknown'
 
     if (config.folders && config.folders.length > 0) {
       folderPath = config.folders[0].path
@@ -490,6 +500,9 @@ async function getInfo() {
       try {
         const folderStatus = await apiCall('GET', `/rest/db/status?folder=${config.folders[0].id}`)
         globalFiles = folderStatus.globalFiles
+        globalBytes = folderStatus.globalBytes || null
+        needFiles = folderStatus.needFiles || 0
+        state = folderStatus.state || 'unknown'
       } catch { /* ignore */ }
 
       // 获取远程设备完成度
@@ -514,16 +527,22 @@ async function getInfo() {
       folderPath,
       completion,
       globalFiles,
+      globalBytes,
+      needFiles,
       remoteDevice,
       deviceId: deviceId.myID || '-',
+      state,
     }
   } catch {
     return {
       folderPath: '-',
       completion: '-',
       globalFiles: null,
+      globalBytes: null,
+      needFiles: 0,
       remoteDevice: '-',
       deviceId: '-',
+      state: 'unknown',
     }
   }
 }

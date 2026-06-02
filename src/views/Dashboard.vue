@@ -40,12 +40,20 @@
           <span class="info-value">{{ syncthingInfo.folderPath || '-' }}</span>
         </div>
         <div class="info-row">
+          <span class="info-label">同步状态</span>
+          <span class="info-value" :class="['sync-state', syncthingInfo.state]">{{ syncStateText }}</span>
+        </div>
+        <div class="info-row">
           <span class="info-label">全局文件</span>
-          <span class="info-value">{{ syncthingInfo.globalFiles ?? '-' }}</span>
+          <span class="info-value">{{ syncthingInfo.globalFiles ?? '-' }}（{{ formatBytes(syncthingInfo.globalBytes) }}）</span>
         </div>
         <div class="info-row">
           <span class="info-label">同步进度</span>
           <span class="info-value">{{ syncthingInfo.completion ?? '-' }}%</span>
+        </div>
+        <div class="info-row" v-if="syncthingInfo.needFiles > 0">
+          <span class="info-label">待同步</span>
+          <span class="info-value">{{ syncthingInfo.needFiles }} 个文件</span>
         </div>
         <div class="info-row">
           <span class="info-label">远程设备</span>
@@ -129,6 +137,10 @@ export default {
     syncthingStatusText() {
       return { running: '同步中', stopped: '已停止', unknown: '检测中...', error: '异常' }[this.syncthingStatus] || this.syncthingStatus
     },
+    syncStateText() {
+      const map = { idle: '空闲', scanning: '扫描中', syncing: '同步中', error: '错误', paused: '已暂停', unknown: '未知' }
+      return map[this.syncthingInfo.state] || this.syncthingInfo.state || '未知'
+    },
   },
   mounted() {
     this.fetchData()
@@ -174,3 +186,12 @@ export default {
   },
 }
 </script>
+
+<style scoped>
+.sync-state.idle { color: var(--text-secondary); }
+.sync-state.scanning { color: #FFA726; }
+.sync-state.syncing { color: var(--accent); }
+.sync-state.error { color: #ef5350; }
+.sync-state.paused { color: #9e9e9e; }
+.sync-state.unknown { color: var(--text-secondary); }
+</style>

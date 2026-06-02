@@ -33,4 +33,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
   updateSyncDir: (newDir) => ipcRenderer.invoke('settings:updateSyncDir', newDir),
+
+  // updater
+  checkUpdate: () => ipcRenderer.invoke('updater:check'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+  getUpdateStatus: () => ipcRenderer.invoke('updater:status'),
+  onUpdateDownloaded: (callback) => ipcRenderer.on('update:downloaded', (_, data) => callback(data)),
 })

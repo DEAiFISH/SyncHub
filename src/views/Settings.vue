@@ -70,6 +70,28 @@
           <span class="toggle-slider"></span>
         </label>
       </div>
+      <div class="setting-item">
+        <span class="setting-label">版本</span>
+        <span class="setting-value">v{{ updateStatus.currentVersion || '-' }}</span>
+      </div>
+      <div class="setting-item" v-if="updateStatus.updateInfo && !updateStatus.updateDownloaded">
+        <span class="setting-label">更新状态</span>
+        <span class="setting-value">
+          <template v-if="updateStatus.downloadProgress">
+            正在下载 v{{ updateStatus.updateInfo.version }}（{{ updateStatus.downloadProgress.percent }}%）
+          </template>
+          <template v-else>
+            发现新版本 v{{ updateStatus.updateInfo.version }}
+          </template>
+        </span>
+      </div>
+      <div class="setting-item" v-if="updateStatus.updateDownloaded" style="justify-content: flex-end; border-bottom: none; padding-top: 4px;">
+        <span style="color: var(--accent); margin-right: 12px; font-size: 13px;">新版本已就绪 (v{{ updateStatus.updateInfo.version }})</span>
+        <button class="btn btn-sm" @click="installUpdate" style="background: var(--accent); color: var(--bg-primary);">重启并安装</button>
+      </div>
+      <div class="setting-item" v-else style="justify-content: flex-end; border-bottom: none; padding-top: 4px;">
+        <button class="btn btn-sm" :class="{ loading: checkingUpdate }" @click="checkUpdate"><span class="spinner"></span>检查更新</button>
+      </div>
     </div>
   </div>
 </template>
@@ -95,6 +117,9 @@ export default {
       copyingLogs: false,
       exported: false,
       exportingLogs: false,
+      updateStatus: { currentVersion: '', updateInfo: null, downloadProgress: null, updateDownloaded: false },
+      checkingUpdate: false,
+      updatePollTimer: null,
     }
   },
   async mounted() {
@@ -117,9 +142,22 @@ export default {
         }
       }
     }, 2000)
+
+    // 更新状态
+    if (window.electronAPI) {
+      this.updateStatus = await window.electronAPI.getUpdateStatus()
+      this.updatePollTimer = setInterval(async () => {
+        this.updateStatus = await window.electronAPI.getUpdateStatus()
+      }, 3000)
+      window.electronAPI.onUpdateDownloaded((data) => {
+        this.updateStatus.updateDownloaded = true
+        this.updateStatus.updateInfo = this.updateStatus.updateInfo || data
+      })
+    }
   },
   beforeUnmount() {
     if (this.logTimer) clearInterval(this.logTimer)
+    if (this.updatePollTimer) clearInterval(this.updatePollTimer)
   },
   methods: {
     markFrpcDirty() {
@@ -213,6 +251,18 @@ export default {
       } finally {
         setTimeout(() => { this.savingDir = false }, 1000)
       }
+    },
+    async checkUpdate() {
+      if (this.checkingUpdate) return
+      this.checkingUpdate = true
+      try {
+        if (window.electronAPI) await window.electronAPI.checkUpdate()
+      } finally {
+        setTimeout(() => { this.checkingUpdate = false }, 5000)
+      }
+    },
+    installUpdate() {
+      if (window.electronAPI) window.electronAPI.installUpdate()
     },
   },
 }

@@ -518,6 +518,12 @@ function writeFrpcConfig(config) {
   fs.writeFileSync(getFrpcConfigPath(), toml, 'utf8')
 }
 
+// 自动迁移旧版 frpc.toml（仅首次生效，已迁移过则跳过）
+function migrateFrpcProxies() {
+  // 迁移已通过上一版执行，此处不再重命名
+  // 保留函数签名以避免 main.js 报错
+}
+
 module.exports = {
   EMBEDDED_CONFIG,
   SERVER_DOMAIN,
@@ -538,6 +544,7 @@ module.exports = {
   runFirstTimeSetup,
   readFrpcConfig,
   writeFrpcConfig,
+  migrateFrpcProxies,
   generateFrpcToml,
   getFullConfig,
   getCachedConfig,

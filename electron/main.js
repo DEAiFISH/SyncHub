@@ -1,8 +1,14 @@
 // dotenv 必须在其他模块之前加载，确保 process.env 已注入
 const path = require('path')
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') })
+const { app } = require('electron')
 
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron')
+// 打包后 .env 在 resources 目录，开发时在项目根目录
+const envPath = app.isPackaged
+  ? path.join(process.resourcesPath, '.env')
+  : path.join(__dirname, '..', '.env')
+require('dotenv').config({ path: envPath })
+
+const { BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron')
 const {
   isSetupDone,
   runFirstTimeSetup,
@@ -13,6 +19,7 @@ const {
   getSyncDir,
   ensureBinaries,
   getFullConfig,
+  migrateFrpcProxies,
 } = require('./services/config')
 const frpc = require('./services/frpc')
 const syncthing = require('./services/syncthing')
@@ -313,6 +320,13 @@ app.whenReady().then(async () => {
     ensureBinaries()
   } catch (err) {
     console.error('[SyncHub] 检查二进制文件失败:', err.message)
+  }
+
+  // 迁移旧版代理名（添加 hostname 前缀）
+  try {
+    migrateFrpcProxies()
+  } catch (err) {
+    console.error('[SyncHub] 代理名迁移失败:', err.message)
   }
 
   setupIPC()

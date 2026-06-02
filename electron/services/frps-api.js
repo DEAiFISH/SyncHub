@@ -4,14 +4,14 @@ const { getCachedConfig } = require('./config')
 
 const FRPS_API_PORT = 7500
 
-function fetchFrpsAPI(endpoint) {
+function fetchFrpsAPI(endpoint, method = 'GET') {
   return new Promise((resolve, reject) => {
     const config = getCachedConfig()
     const options = {
       hostname: config.serverAddr,
       port: FRPS_API_PORT,
       path: endpoint,
-      method: 'GET',
+      method: method,
       headers: {
         'Authorization':
           'Basic ' + Buffer.from(config.serverWebUser + ':' + config.serverWebPassword).toString('base64'),
@@ -24,21 +24,20 @@ function fetchFrpsAPI(endpoint) {
       res.on('data', (chunk) => (data += chunk))
       res.on('end', () => {
         if (res.statusCode < 200 || res.statusCode >= 300) {
-          console.error(`[frps-api] ${endpoint} 返回非成功状态码: ${res.statusCode}, body: ${data.substring(0, 200)}`)
+          console.error(`[frps-api] ${method} ${endpoint} 返回状态码: ${res.statusCode}, body: ${data.substring(0, 200)}`)
           reject(new Error(`HTTP ${res.statusCode}`))
           return
         }
         try {
           resolve(JSON.parse(data))
         } catch {
-          console.error(`[frps-api] ${endpoint} JSON 解析失败: ${data.substring(0, 200)}`)
-          reject(new Error('JSON 解析失败'))
+          resolve(data)
         }
       })
     })
 
     req.on('error', (e) => {
-      console.error(`[frps-api] ${endpoint} 请求失败: ${e.message}`)
+      console.error(`[frps-api] ${method} ${endpoint} 请求失败: ${e.message}`)
       reject(e)
     })
     req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
@@ -46,10 +45,23 @@ function fetchFrpsAPI(endpoint) {
   })
 }
 
+// 删除服务器上指定代理（通过 frps Dashboard API）
+async function deleteProxy(proxyName) {
+  try {
+    await fetchFrpsAPI(`/api/proxy/tcp/${proxyName}`, 'DELETE')
+    console.log(`[frps-api] 已删除代理: ${proxyName}`)
+    return true
+  } catch (e) {
+    console.error(`[frps-api] 删除代理 ${proxyName} 失败: ${e.message}`)
+    return false
+  }
+}
+
 async function getProxyList() {
   try {
     const data = await fetchFrpsAPI('/api/proxy/tcp')
-    return (data.proxies || []).map((p) => ({
+    const proxies = Array.isArray(data.proxies) ? data.proxies : []
+    return proxies.map((p) => ({
       name: p.name,
       status: p.status,
       localIP: p.conf ? p.conf.localIP : '-',
@@ -102,4 +114,4 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
-module.exports = { getProxyList, getServerInfo, fetchFrpsAPI }
+module.exports = { getProxyList, getServerInfo, fetchFrpsAPI, deleteProxy }

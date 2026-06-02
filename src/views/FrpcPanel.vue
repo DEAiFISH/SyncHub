@@ -106,15 +106,14 @@ export default {
       if (!window.electronAPI) return
       try {
         const proxyResult = await window.electronAPI.getFrpsProxies()
-        if (proxyResult.error) {
+        if (proxyResult && proxyResult.error) {
           this.proxiesError = proxyResult.error
           this.proxies = []
           this.serverOnline = false
         } else {
-          // 只显示当前配置中定义的代理，过滤掉服务器上的旧残留
-          const myProxyNames = (this.config.proxies || []).map(p => p.name)
-          this.proxies = proxyResult.filter(p => myProxyNames.includes(p.name))
-          this.proxiesError = null
+          const list = Array.isArray(proxyResult) ? proxyResult : []
+          this.proxies = list
+          this.proxiesError = list.length === 0 ? '暂无在线隧道' : null
           this.serverOnline = true
         }
         const info = await window.electronAPI.getFrpsServerInfo()

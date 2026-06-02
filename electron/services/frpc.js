@@ -1,7 +1,7 @@
 const { spawn, execFile } = require('child_process')
 const fs = require('fs')
 const path = require('path')
-const { getFrpcBinary, getFrpcConfigPath, ensureBinaries, addDefenderExclusion, downloadFrpc, getDataDir } = require('./config')
+const { getFrpcBinary, getFrpcConfigPath, ensureBinaries, addDefenderExclusion, downloadFrpc, getDataDir, readFrpcConfig } = require('./config')
 
 let frpcProcess = null
 let status = 'stopped'
@@ -12,6 +12,7 @@ const RESTART_INTERVAL = 5000
 let restartTimer = null
 let manualStop = false
 let recoveryAttempted = false
+let startInProgress = false
 
 function addLog(level, msg) {
   const time = new Date().toLocaleTimeString('zh-CN', { hour12: false })
@@ -19,11 +20,41 @@ function addLog(level, msg) {
   if (logBuffer.length > 1000) logBuffer.shift()
 }
 
-function start() {
+async function start() {
+  if (startInProgress) return
   if (frpcProcess && !frpcProcess.killed) {
     addLog('info', 'frpc 已在运行中，跳过启动')
     return
   }
+  startInProgress = true
+
+  // 启动前清理所有残留 frpc 进程（防止旧进程占着代理名）
+  if (process.platform === 'win32') {
+    try {
+      const { execSync } = require('child_process')
+      execSync('taskkill /IM frpc.exe /F', { windowsHide: true })
+      addLog('info', '已清理残留 frpc 进程')
+    } catch (e) {
+      // 没有残留进程
+    }
+  }
+
+  // 通过 frps API 删除同名旧代理（解决"proxy already exists"）
+  try {
+    const { deleteProxy } = require('./frps-api')
+    const config = readFrpcConfig()
+    if (config.proxies && config.proxies.length > 0) {
+      for (const p of config.proxies) {
+        addLog('info', `正在清理服务器上的旧代理: ${p.name}`)
+        await deleteProxy(p.name)
+      }
+    }
+  } catch (e) {
+    addLog('warn', `清理旧代理失败（不影响启动）: ${e.message}`)
+  }
+
+  // 等待 1 秒让服务器完成清理
+  await new Promise(r => setTimeout(r, 1000))
 
   const binPath = getFrpcBinary()
   const configPath = getFrpcConfigPath()
@@ -60,6 +91,7 @@ function start() {
     addLog('error', '3. 从 https://github.com/fatedier/frp/releases 下载 frpc.exe 放入上述目录')
     addLog('error', '4. 重启 SyncHub')
     scheduleRestart()
+    startInProgress = false
     return
   }
 
@@ -67,6 +99,7 @@ function start() {
   if (!fs.existsSync(configPath)) {
     status = 'error'
     addLog('error', `frpc 配置文件不存在: ${configPath}`)
+    startInProgress = false
     return
   }
 
@@ -81,11 +114,13 @@ function start() {
       status = 'error'
       addLog('error', 'frpc 进程启动失败，无法获取 PID')
       scheduleRestart()
+      startInProgress = false
       return
     }
 
     status = 'running'
     restartCount = 0
+    startInProgress = false
     addLog('info', `frpc 已启动 (PID: ${frpcProcess.pid})`)
 
     frpcProcess.stdout.on('data', (data) => {
@@ -130,6 +165,7 @@ function start() {
     status = 'error'
     addLog('error', `启动异常: ${err.message}`)
     scheduleRestart()
+    startInProgress = false
   }
 }
 
@@ -149,8 +185,9 @@ function scheduleRestart() {
 
 function stop() {
   manualStop = true
+  addLog('info', '正在停止 frpc...')
+
   if (frpcProcess && !frpcProcess.killed) {
-    addLog('info', '正在停止 frpc...')
     try {
       if (process.platform === 'win32') {
         const { execSync } = require('child_process')
@@ -161,10 +198,23 @@ function stop() {
     } catch (e) {
       try { frpcProcess.kill() } catch {}
     }
-    frpcProcess = null
-    status = 'stopped'
-    addLog('info', 'frpc 已停止')
   }
+
+  // 兜底：按进程名杀掉所有 frpc.exe（防止旧安装路径的残留进程占着代理名）
+  if (process.platform === 'win32') {
+    try {
+      const { execSync } = require('child_process')
+      execSync('taskkill /IM frpc.exe /F', { windowsHide: true })
+      addLog('info', '已强制终止所有 frpc 进程')
+    } catch (e) {
+      // 没有运行中的 frpc 进程，忽略
+    }
+  }
+
+  frpcProcess = null
+  status = 'stopped'
+  addLog('info', 'frpc 已停止')
+
   if (restartTimer) {
     clearTimeout(restartTimer)
     restartTimer = null
